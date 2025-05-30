@@ -2,83 +2,66 @@ import streamlit as st
 import pandas as pd
 from sklearn.cluster import KMeans
 import folium
-from streamlit_folium import st_folium
+from streamlit_folium import folium_static
 
-# 앱 제목
-st.title("배달 지점 군집화 지도 시각화")
-st.markdown("""
-이 앱은 업로드한 위치 데이터를 바탕으로 **k-Means 군집화**를 수행하고, 
-**지도 위에 시각화**하여 보여줍니다.
-""")
+# 페이지 제목
+st.set_page_config(page_title="배달 위치 클러스터링", layout="wide")
+st.title("📍 배달 위치 클러스터링 및 지도 시각화 (k-Means)")
 
 # CSV 파일 업로드
-uploaded_file = st.file_uploader("CSV 파일을 업로드하세요", type=["csv"])
+uploaded_file = st.file_uploader("📄 CSV 파일 업로드", type=["csv"])
 
 if uploaded_file:
+    # 데이터 불러오기
     df = pd.read_csv(uploaded_file)
 
-    st.subheader("📋 데이터 미리보기")
-    st.write(df.head())
+    # 필수 컬럼 확인
+    if 'latitude' in df.columns and 'longitude' in df.columns:
+        st.success("✅ 위도(latitude), 경도(longitude) 컬럼이 확인되었습니다.")
 
-    st.subheader("🧭 위치 정보 컬럼 선택")
-    lat_col = st.selectbox("위도 (latitude) 컬럼 선택", df.columns)
-    lon_col = st.selectbox("경도 (longitude) 컬럼 선택", df.columns)
+        # 클러스터 수 선택
+        k = st.slider("클러스터 수 (k)", min_value=1, max_value=10, value=3)
 
-    st.subheader("🔢 군집 수(k) 선택")
-    n_clusters = st.slider("k 값 (군집 수)", min_value=1, max_value=10, value=3)
+        # k-Means 클러스터링
+        coords = df[['latitude', 'longitude']]
+        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+        df['cluster'] = kmeans.fit_predict(coords)
 
-    # 위도/경도 숫자 변환 및 NaN 제거
-    df[lat_col] = pd.to_numeric(df[lat_col], errors='coerce')
-    df[lon_col] = pd.to_numeric(df[lon_col], errors='coerce')
-    df = df.dropna(subset=[lat_col, lon_col])
+        # 지도 중심 위치 계산
+        center_lat = df['latitude'].mean()
+        center_lon = df['longitude'].mean()
 
-    if df.empty:
-        st.error("유효한 위치 데이터가 없습니다. 위도/경도 컬럼을 확인하세요.")
-        st.stop()
+        # Folium 지도 생성
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
 
-    # 군집화
-    coords = df[[lat_col, lon_col]]
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
-    df['cluster'] = kmeans.fit_predict(coords)
-
-    # 지도 중심 좌표 (NaN 체크 이후)
-    center_lat = df[lat_col].mean()
-    center_lon = df[lon_col].mean()
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=12)
-
-    def get_color(cluster_num):
+        # 클러스터 색상
         colors = [
-            "red", "blue", "green", "purple", "orange",
-            "darkred", "lightblue", "lightgreen", "cadetblue", "pink"
+            'red', 'blue', 'green', 'purple', 'orange',
+            'darkred', 'lightblue', 'darkgreen', 'cadetblue', 'black'
         ]
-        return colors[cluster_num % len(colors)]
 
-    for _, row in df.iterrows():
-        folium.CircleMarker(
-            location=[row[lat_col], row[lon_col]],
-            radius=6,
-            color=get_color(row['cluster']),
-            fill=True,
-            fill_opacity=0.7,
-            popup=f"Cluster {row['cluster']}"
-        ).add_to(m)
+        # 각 지점 지도에 표시
+        for _, row in df.iterrows():
+            folium.CircleMarker(
+                location=[row['latitude'], row['longitude']],
+                radius=5,
+                color=colors[row['cluster'] % len(colors)],
+                fill=True,
+                fill_opacity=0.7,
+                popup=f"Cluster: {row['cluster']}"
+            ).add_to(m)
 
-    for idx, center in enumerate(kmeans.cluster_centers_):
-        folium.Marker(
-            location=[center[0], center[1]],
-            icon=folium.Icon(color='black', icon='info-sign'),
-            popup=f"Cluster {idx} 중심"
-        ).add_to(m)
+        # 지도 표시
+        st.subheader("🗺️ 클러스터링 결과 지도")
+        folium_static(m)
 
-    st.subheader("🗺️ 군집화 결과 지도")
-    st_folium(m, width=700, height=500)
-
-    st.subheader("💾 군집 결과 다운로드")
-    csv = df.to_csv(index=False).encode('utf-8-sig')
-    st.download_button("결과 CSV 다운로드", data=csv, file_name="clustered_data.csv", mime="text/csv")
-
+        # 데이터프레임 출력
+        with st.expander("📊 클러스터링된 데이터 보기"):
+            st.dataframe(df)
+    else:
+        st.error("❌ CSV 파일에 'latitude'와 'longitude' 컬럼이 존재해야 합니다.")
 else:
-    st.info("CSV 파일을 업로드하면 앱이 자동으로 분석을 시작합니다.")
+    st.info("👆 좌측 상단에서 CSV 파일을 업로드하세요.")
 
 
    
