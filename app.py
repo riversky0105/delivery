@@ -9,11 +9,11 @@ st.set_page_config(page_title="배달 위치 클러스터링", layout="wide")
 st.title("📍 배달 위치 클러스터링 및 지도 시각화 (k-Means)")
 
 # CSV 파일 업로드
-uploaded_file = st.file_uploader("📄 CSV 파일 업로드", type=["csv"])
 
-if uploaded_file:
+
+
     # 데이터 불러오기
-    df = pd.read_csv(uploaded_file)
+df = pd.read_csv("Delivery - Delivery.csv")
 
     # 필수 컬럼 확인
     if 'latitude' in df.columns and 'longitude' in df.columns:
